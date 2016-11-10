@@ -45,15 +45,11 @@ END_MESSAGE_MAP()
 
 // CAppMonitorDlg 대화 상자
 
-
-
 CAppMonitorDlg::CAppMonitorDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CAppMonitorDlg::IDD, pParent)
 	, m_strEditLog(_T(""))
 {
-	m_strZebraIP = L"";
-	m_nZebraPort = 9100;
-	m_nZebraRebootTime = 10;
+	m_nZebraRebootTime = 20;
 	m_bInRebooting = FALSE;
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -73,6 +69,8 @@ BEGIN_MESSAGE_MAP(CAppMonitorDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BT_STOP, &CAppMonitorDlg::OnBnClickedBtStop)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_BT_CONFIG, &CAppMonitorDlg::OnBnClickedBtConfig)
+	ON_BN_CLICKED(IDC_BT_FILE_DEL, &CAppMonitorDlg::OnBnClickedBtFileDel)
+	ON_BN_CLICKED(IDC_CHK_IMG_DEL, &CAppMonitorDlg::OnBnClickedChkImgDel)
 END_MESSAGE_MAP()
 
 
@@ -117,8 +115,6 @@ BOOL CAppMonitorDlg::OnInitDialog()
 	//
 
 	OnBnClickedBtStart();
-
-	//ShowWindow(SW_MINIMIZE);
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 
@@ -230,27 +226,18 @@ BOOL CAppMonitorDlg::ReadConfig() // \\AppMonitor.ini
 		m_nMntTerm = _ttoi(szValue); //
 		SetDlgItemInt(IDC_EDIT_TERM,m_nMntTerm);
 	}
-	//ZeroMemory(szValue, 0xFF); //RESET 제한간격 (SEC)
-	//if (GetPrivateProfileString(L"APP_MONITOR", L"APP_RESET_LIMIT_SEC" , L"", szValue, sizeof(szValue), strPath))
-	//{
-	//	m_nResetLimit = _ttoi(szValue); //
-	//}
+
+	ZeroMemory(szValue, 0xFF); //라벨 이미지파일 저장경로
+	if (GetPrivateProfileString(L"APP_MONITOR", L"LABEL_IMG_FILE_DIR" , L"", szValue, sizeof(szValue), strPath))
+	{
+		m_strLabelImgFileDir = szValue; // //
+		SetDlgItemText(IDC_EDIT_IMG_DIR,m_strLabelImgFileDir);
+	}
+
 	ZeroMemory(szValue, 0xFF); //ZEBRA 재부팅시간 (SEC)
 	if (GetPrivateProfileString(L"APP_MONITOR", L"ZEBRA_REBOOT_SEC" , L"", szValue, sizeof(szValue), strPath))
 	{
 		m_nZebraRebootTime = _ttoi(szValue); //
-	}
-
-	ZeroMemory(szValue, 0xFF); 
-	if (GetPrivateProfileString(L"ZEBRA", L"IP",L"", szValue, sizeof(szValue), strPath))
-	{
-		m_strZebraIP = szValue;
-		SetDlgItemText(IDC_IPADDR,m_strZebraIP);
-	}
-
-	if (GetPrivateProfileString(L"ZEBRA", L"PORT" , L"", szValue, sizeof(szValue), strPath))
-	{
-		m_nZebraPort = _ttoi(szValue); //
 	}
 	
 	return TRUE;
@@ -359,20 +346,6 @@ void CAppMonitorDlg::OnTimer(UINT_PTR nIDEvent)
 			GetLog()->Debug(strLog.GetBuffer());
 			AddLog(strLog);
 			
-		//OLD code
-			//BOOL bIsNeedToReboot = NeedToReboot();
-			//if( bIsNeedToReboot == TRUE && m_bAliveCheck == TRUE)
-			//{
-			//	RebootZEBRA();
-			//	m_bAliveCheck = FALSE;
-
-			//	nElapse = m_nZebraRebootTime * 1000; //
-			//	SetTimer(IDD+1,nElapse,NULL);
-
-			//	nElapse = (m_nResetLimit+5) * 1000;
-			//	SetTimer(IDD+2,nElapse,NULL);
-			//	return;
-			//}
 			if(m_bInRebooting == FALSE)
 			{
 				nElapse = 100; //0.1 SEC
@@ -422,92 +395,6 @@ void CAppMonitorDlg::MBCS2Unicode(LPCSTR lpData,LPWSTR ReturnData)
 	return;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////
-// ZEBRA PRINTER 관련 함수
-BOOL CAppMonitorDlg::ConnectToZEBRA(CString strIP, int nPort)
-{
-	//UINT nPort = 9100;
-
-	m_Socket.Create();
-	
-	CString strLog;
-
-	if(m_Socket.Connect(strIP, nPort) == FALSE) //
-	{
-		m_Socket.ShutDown(2);
-		m_Socket.CancelBlockingCall(); //
-		m_Socket.Close();
-		
-		strLog = L"ERROR: Failed to connect ZEBRA";
-		GetLog()->Debug(strLog.GetBuffer());
-		AddLog(strLog);
-		return FALSE;
-	}
-	else
-	{
-		strLog = L"Connected to ZEBRA";
-		GetLog()->Debug(strLog.GetBuffer());
-		AddLog(strLog);
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
-void CAppMonitorDlg::DisconnectToZEBRA()
-{
-	m_Socket.ShutDown();
-	m_Socket.CancelBlockingCall();
-	m_Socket.Close();
-
-	CString strLog = L"Disconnect ZEBRA";
-	GetLog()->Debug(strLog.GetBuffer());
-	AddLog(strLog);
-}
-
-int	CAppMonitorDlg::SendToZEBRA(CString strZPL)
-{
-	int nRet = SOCKET_ERROR;
-	CString strLog;
-	char chSendPacket[1024*10]; //size 넉넉히...
-	memset(chSendPacket,0x00,sizeof(chSendPacket));
-	
-	Unicode2MBCS(strZPL.GetBuffer(),chSendPacket);
-
-	if(ConnectToZEBRA(m_strZebraIP, m_nZebraPort))
-	{
-		nRet = m_Socket.Send((LPVOID)chSendPacket,strlen(chSendPacket)+1);
-
-		if(nRet > 0 && nRet != SOCKET_ERROR) //If no error occurs, Send returns the number of characters sent. Otherwise, SOCKET_ERROR
-		{
-			strLog.Format(L"[SND] %s", strZPL);
-			GetLog()->Debug(strLog.GetBuffer());
-			AddLog(strLog);
-		}
-		else
-		{
-			strLog.Format(L"[ERROR] Send [%s] / ErrCode: %d ", strZPL ,nRet);
-			GetLog()->Debug(strLog.GetBuffer());
-			AddLog(strLog);
-		}
-
-		DisconnectToZEBRA();
-	}
-
-	return nRet;
-}
-
-void CAppMonitorDlg::OnBnClickedBtConfig()
-{
-	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
-	OnBnClickedBtStop();
-	ShellExecute(NULL,L"open",L"AppMonitor.ini",NULL,NULL,SW_SHOW); //설정파일 열기
-	CString strLog = L"설정파일(AppMonitor.ini) 열림.";
-	GetLog()->Debug(strLog.GetBuffer());
-	//AddLog(strLog);
-
-}
-
 void CAppMonitorDlg::AddLog(CString strEvent)
 {
 	SYSTEMTIME st;
@@ -526,76 +413,6 @@ void CAppMonitorDlg::AddLog(CString strEvent)
 		m_strEditLog = L"이전 Event는 Log파일을 참조하세요.";
 		m_strEditLog += L"\r\n";
 	}
-}
-
-/*MFC 시간차 구하기
-CTime start = CTime::GetCurrentTime();
-Sleep(1000);
-CTime end = CTime::GetCurrentTime();
-
-CTimeSpan elapseTime = end - start;
-
-CString str;
-str.Format(L"%d초가 지났습니다.",elapseTime.GetTotalSeconds();
-
-AfxMessageBox(str);
-*/
-
-//마지막 App Reset Time check해서 설정시간 이하면, ZEBRA프린터서버 이상으로 판단, 재부팅하기 위함
-BOOL CAppMonitorDlg::NeedToReboot()
-{
-	//TCHAR szCurrentPath[1024], szValue[0xFF];
-	//GetCurrentDirectory(1024, szCurrentPath);
-	//CString strPath = szCurrentPath;
-	//CString strExePath = GetExecuteDirectory();
-	//strPath.Format(L"%s\\AppMonitor.ini", strExePath);
-	//
-	//CString strLog;
-
-	//if(!PathFileExists(strPath)) 
-	//{
-	//	strLog = L"[Error] AppMonitor.ini 파일이 존재하지 않습니다(2).";
-	//	GetLog()->Debug(strLog.GetBuffer());
-	//	AddLog(strLog);
-	//	return FALSE;
-	//}
-
-	//CString strLogTime;
-	//ZeroMemory(szValue, 0xFF); 
-	//if (GetPrivateProfileString(L"APP_MONITOR", L"APP_EXIT_TIME" , L"", szValue, sizeof(szValue), strPath))
-	//{
-	//	strLogTime = szValue; //이전에, DMS "RESET" 요청(패킷전송)으로 프로그램 종료된 시간.
-	//}
-
-	//int nYear,nMonth, nDay, nHour, nMinute, nSecond; 
-
-	//nYear = _ttoi(strLogTime.Left(4));
-	//nMonth = _ttoi(strLogTime.Mid(5,2));
-	//nDay = _ttoi(strLogTime.Mid(8,2));
-
-	//nHour = _ttoi(strLogTime.Mid(11,2));
-	//nMinute = _ttoi(strLogTime.Mid(14,2));
-	//
-	////nSecond = _ttoi(strLogTime.Mid(17,2));
-	//nSecond = _ttoi(strLogTime.Right(2));
-
-
-	//CTime logTime(nYear,nMonth,nDay,nHour,nMinute, nSecond);
-	//CTime currentTime = CTime::GetCurrentTime();
-
-	//CTimeSpan elapseTime = currentTime - logTime;
-
-	//
-	//strLog.Format(L"마지막 RESET(%s)후 %d초 경과",
-	//	strLogTime, elapseTime.GetTotalSeconds());
-	//GetLog()->Debug(strLog.GetBuffer());
-	//AddLog(strLog);
-	//
-	//if(elapseTime <= m_nResetLimit) //설정시간 이하 
-	//	return TRUE;
-	//else
-	//	return FALSE;
-	return FALSE;
 }
 
 UINT CAppMonitorDlg::ThreadCheckRebooting(LPVOID lpvoid)
@@ -652,3 +469,98 @@ void CAppMonitorDlg::CheckRebootingProc()
 	    GetLog()->Debug(strLog.GetBuffer());
 	}
 }
+
+void CAppMonitorDlg::OnBnClickedBtConfig()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	OnBnClickedBtStop();
+	ShellExecute(NULL,L"open",L"AppMonitor.ini",NULL,NULL,SW_SHOW); //설정파일 열기
+	CString strLog = L"설정파일(AppMonitor.ini) 열림.";
+	GetLog()->Debug(strLog.GetBuffer());
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//2016-11-10 적용여부 미정 - 파일삭제 기능 code 참고만 
+void CAppMonitorDlg::OnBnClickedChkImgDel() // Control Visable FALSE
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if( ((CButton*)GetDlgItem(IDC_CHK_IMG_DEL))->GetCheck() )
+	{
+		SetDlgItemText(IDC_EDIT_NUM, L"365"); //365일- 1년 default
+		GetDlgItem(IDC_EDIT_NUM)->ShowWindow(SW_SHOW);
+		GetDlgItem(IDC_STATIC_PERIOD)->ShowWindow(SW_SHOW);
+		GetDlgItem(IDC_BT_FILE_DEL)->ShowWindow(SW_SHOW);
+
+		OnBnClickedBtStop();
+		GetDlgItem(IDC_BT_CONFIG)->ShowWindow(SW_HIDE);
+		GetDlgItem(IDC_BT_START)->EnableWindow(FALSE);
+		GetDlgItem(IDC_BT_STOP)->EnableWindow(FALSE);
+	}
+	else
+	{
+		GetDlgItem(IDC_EDIT_NUM)->ShowWindow(SW_HIDE);
+		GetDlgItem(IDC_STATIC_PERIOD)->ShowWindow(SW_HIDE);
+		GetDlgItem(IDC_BT_FILE_DEL)->ShowWindow(SW_HIDE);
+
+		GetDlgItem(IDC_BT_CONFIG)->ShowWindow(SW_SHOW);
+		GetDlgItem(IDC_BT_START)->EnableWindow(TRUE);
+		GetDlgItem(IDC_BT_STOP)->EnableWindow(TRUE);
+	}
+}
+
+void CAppMonitorDlg::OnBnClickedBtFileDel()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	//CString strDay;
+	//GetDlgItemText(IDC_EDIT_NUM,strDay);
+	//int nElapse = _wtoi(strDay);
+
+	//if(nElapse <= 0 )
+	//{
+	//	MessageBox(L"정확한 경과일(1일이상)을 입력하세요.", L"ERROR", MB_ICONERROR);
+	//	return;
+	//}
+
+	//CString strDirName = L"D:/Label";
+	//CFileFind finder;
+
+	//BOOL bWorking = finder.FindFile((CString)strDirName + L"/*.*");
+
+	//while(bWorking)
+	//{
+	//	bWorking = finder.FindNextFileW();
+
+	//	if(finder.IsDots())
+	//	{
+	//		continue;
+	//	}
+	//	CString filePath = finder.GetFilePath();
+	//	CString strFileName = finder.GetFileName();
+	//	CString strTemp;
+	//	int nYear, nMonth, nDay, nHour, nMinute, nSec;
+	//	//161102164634.png
+	//	if(strFileName.GetLength() == 16)
+	//	{
+	//		strTemp = L"20" + strFileName.Left(2);
+	//		nYear = _wtoi(strTemp);
+	//		nMonth = _wtoi(strFileName.Mid(2,2));
+	//		nDay = _wtoi(strFileName.Mid(4,2));
+	//		nHour = _wtoi(strFileName.Mid(6,2));
+	//		nMinute = _wtoi(strFileName.Mid(8,2));
+	//		nSec = _wtoi(strFileName.Mid(10,2));
+	//	
+	//		CTime tStart(nYear, nMonth, nDay, nHour, nMinute, nSec);
+	//		CTime tEnd = CTime::GetCurrentTime();
+
+	//		CTimeSpan elapseTime = tEnd -tStart;
+
+	//		if(elapseTime.GetTotalSeconds() > 3600) // ex) 1시간 이전 파일 삭제
+	//		{
+	//			//AddLog(strFileName); 
+	//			; //삭제 or ...
+	//		}
+	//	}
+	//}
+}
+

@@ -107,7 +107,6 @@
   <ItemGroup>
     <ClInclude Include="AppMonitor.h" />
     <ClInclude Include="AppMonitorDlg.h" />
-    <ClInclude Include="ConnectSocket.h" />
     <ClInclude Include="CsvParser.h" />
     <ClInclude Include="Log.h" />
     <ClInclude Include="LogFile.h" />
@@ -119,7 +118,6 @@
   <ItemGroup>
     <ClCompile Include="AppMonitor.cpp" />
     <ClCompile Include="AppMonitorDlg.cpp" />
-    <ClCompile Include="ConnectSocket.cpp" />
     <ClCompile Include="CsvParser.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="LogFile.cpp" />
