@@ -65,4 +65,5 @@ public:
 	afx_msg void OnBnClickedChkImgDel();
 
 	CString	m_strLabelImgFileDir;
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
 };

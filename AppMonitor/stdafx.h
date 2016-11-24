@@ -38,7 +38,6 @@
 #include <algorithm>
 #include <tchar.h>
 #include "Log.h"
-#include "LogList.h"
 
 #include <afxsock.h>            // MFC 소켓 확장
 
