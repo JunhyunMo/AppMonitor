@@ -50,6 +50,7 @@ public:
 	CString			m_strEditLog;
 
 	UINT			m_nZebraRebootTime;
+	UINT			m_nZebraWaitingTime; //2017-07-24
 
 	void Unicode2MBCS(LPWSTR lpData,LPSTR lpRtd);
 	void MBCS2Unicode(LPCSTR lpData,LPWSTR ReturnData);
@@ -57,9 +58,15 @@ public:
 
 	//2016-10-25
 	static UINT ThreadCheckRebooting(LPVOID lpvoid); //ZEBRA 리부팅중인지 체크
+	//2017-07-24
+	static UINT ThreadCheckWaiting(LPVOID lpvoid); //ZEBRA 대기중 체크
 	BOOL		m_bInRebooting;
+	//2017-07-24
+	BOOL		m_bWaiting;
 	//2016-11-02
 	void		CheckRebootingProc(); 
+	//2017-07-24
+	void		CheckWaitingProc(); 
 
 	afx_msg void OnBnClickedBtFileDel();
 	afx_msg void OnBnClickedChkImgDel();

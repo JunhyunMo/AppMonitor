@@ -49,8 +49,12 @@ CAppMonitorDlg::CAppMonitorDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CAppMonitorDlg::IDD, pParent)
 	, m_strEditLog(_T(""))
 {
-	m_nZebraRebootTime = 20;
+	m_nZebraRebootTime = 20; //default
 	m_bInRebooting = FALSE;
+	//2017-07-24
+	m_nZebraWaitingTime = 10; //default
+	m_bWaiting = FALSE;
+	//
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
 
@@ -239,6 +243,12 @@ BOOL CAppMonitorDlg::ReadConfig() // \\AppMonitor.ini
 	{
 		m_nZebraRebootTime = _ttoi(szValue); //
 	}
+
+	ZeroMemory(szValue, 0xFF); //ZEBRA 대기시간 (SEC)
+	if (GetPrivateProfileString(L"APP_MONITOR", L"ZEBRA_WAITING_SEC" , L"", szValue, sizeof(szValue), strPath))
+	{
+		m_nZebraWaitingTime = _ttoi(szValue); //
+	}
 	
 	return TRUE;
 }
@@ -261,6 +271,7 @@ void CAppMonitorDlg::OnBnClickedBtStart()
 		AddLog(strLog);
 
 		CheckRebootingProc(); //2016-11-02
+		CheckWaitingProc(); //2017-07-24
 	}
 }
 
@@ -359,6 +370,15 @@ void CAppMonitorDlg::OnTimer(UINT_PTR nIDEvent)
 				nElapse = m_nZebraRebootTime * 1000; //
 				SetTimer(IDD+1,nElapse,NULL);
 			}
+			else if(m_bWaiting == TRUE) //2017-07-24
+			{
+				strLog = _T("ZEBRA 대기시간...App 실행 대기...");
+				GetLog()->Debug(strLog.GetBuffer());
+
+				nElapse = m_nZebraWaitingTime * 1000; //
+				SetTimer(IDD+1,nElapse,NULL);
+			}
+
 		}
 		else
 		{
@@ -466,6 +486,61 @@ void CAppMonitorDlg::CheckRebootingProc()
 	else
 	{
 		CString strLog = L"AfxBeginThread(ThreadCheckRebooting,this)";
+	    GetLog()->Debug(strLog.GetBuffer());
+	}
+}
+
+UINT CAppMonitorDlg::ThreadCheckWaiting(LPVOID lpvoid)
+{
+	CAppMonitorDlg* pDlg = (CAppMonitorDlg*)lpvoid;
+	CString strFlag;
+
+	while(1)
+	{
+		TCHAR szCurrentPath[1024], szValue[0xFF];
+		GetCurrentDirectory(1024, szCurrentPath);
+		CString strPath = szCurrentPath;
+		CString strExePath = pDlg->GetExecuteDirectory();
+		strPath.Format(L"%s\\AppMonitor.ini", strExePath);
+	
+		if(PathFileExists(strPath)) 
+		{
+			ZeroMemory(szValue, 0xFF); 
+			if (GetPrivateProfileString(L"ZEBRA", L"WAITING",L"", szValue, sizeof(szValue), strPath))
+			{
+				strFlag = szValue;
+			}
+
+		}
+
+		if(strFlag == L"1")
+		{
+			pDlg->m_bWaiting= TRUE;
+		}
+		else
+		{
+			pDlg->m_bWaiting = FALSE;
+		}
+
+		Sleep(100);
+	}
+
+	return 0;
+}
+
+void CAppMonitorDlg::CheckWaitingProc()
+{
+	CWinThread *p1 = NULL;
+	p1 = AfxBeginThread(ThreadCheckWaiting,this);
+
+	if(p1 == NULL)
+	{
+		CString strLog = L"[ERROR] AfxBeginThread(ThreadCheckWaiting,this) - NULL";
+	    GetLog()->Debug(strLog.GetBuffer());
+	}
+	else
+	{
+		CString strLog = L"AfxBeginThread(ThreadCheckWaiting,this)";
 	    GetLog()->Debug(strLog.GetBuffer());
 	}
 }
