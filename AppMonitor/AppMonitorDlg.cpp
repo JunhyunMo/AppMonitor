@@ -52,7 +52,7 @@ CAppMonitorDlg::CAppMonitorDlg(CWnd* pParent /*=NULL*/)
 	m_nZebraRebootTime = 20; //default
 	m_bInRebooting = FALSE;
 	//2017-07-24
-	m_nZebraWaitingTime = 10; //default
+	m_nZebraWaitingTime = 15; //default
 	m_bWaiting = FALSE;
 	//
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
@@ -357,7 +357,7 @@ void CAppMonitorDlg::OnTimer(UINT_PTR nIDEvent)
 			GetLog()->Debug(strLog.GetBuffer());
 			AddLog(strLog);
 			
-			if(m_bInRebooting == FALSE)
+			if(m_bInRebooting == FALSE && m_bWaiting == FALSE)
 			{
 				nElapse = 100; //0.1 SEC
 				SetTimer(IDD+1,nElapse,NULL);
