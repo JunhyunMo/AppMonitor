@@ -242,12 +242,14 @@ BOOL CAppMonitorDlg::ReadConfig() // \\AppMonitor.ini
 	if (GetPrivateProfileString(L"APP_MONITOR", L"ZEBRA_REBOOT_SEC" , L"", szValue, sizeof(szValue), strPath))
 	{
 		m_nZebraRebootTime = _ttoi(szValue); //
+		SetDlgItemInt(IDC_EDIT_REBOOT_SEC,m_nZebraRebootTime);//2017-08-08
 	}
 
 	ZeroMemory(szValue, 0xFF); //ZEBRA 대기시간 (SEC)
 	if (GetPrivateProfileString(L"APP_MONITOR", L"ZEBRA_WAITING_SEC" , L"", szValue, sizeof(szValue), strPath))
 	{
 		m_nZebraWaitingTime = _ttoi(szValue); //
+		SetDlgItemInt(IDC_EDIT_WAIT_SEC,m_nZebraWaitingTime);//2017-08-08
 	}
 	
 	return TRUE;
